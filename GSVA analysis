@@ -1,1 +1,16 @@
-
+library(GSVA)
+library(GSEABase)
+library(GSVAdata)
+library(clusterProfiler)
+data("c2BroadSets")
+mydata<-read.csv("gene_2297 TPM.csv")
+gene.df<-bitr(rownames(mydata), fromType = "SYMBOL",toType = c("ENTREZID"),OrgDb = org.Hs.eg.db)
+mydata<-cbind(rownames(mydata),mydata)
+colnames(mydata)[1]=c("SYMBOL")
+final=merge(gene.df,mydata,by="SYMBOL")
+final$SYMBOL=NULL
+final=final[!duplicated(final$ENTREZID),]
+rownames(final)=final$ENTREZID
+final$ENTREZID=NULL
+resgsva=gsva(as.matrix(final),canonicalC2BroadSets,min.sz=10,max.sz=500,kcdf="Gaussian")
+write.csv(resgsva,"GSVA_result_283pathways of 142CRC_2297 tpm.csv")
