@@ -1,0 +1,36 @@
+library(RCurl)
+library(stringr)
+library(XML)
+library(clusterProfiler)
+require(rvest)
+genes <- read.csv("10721genee.csv")      #read the gene table
+#change the gene symbol into entrze ID:
+genes <- bitr(genes$gene, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+genes$NCBI_url <- paste("https://www.ncbi.nlm.nih.gov/gene/",genes$ENTREZID,sep="")
+
+# Get the node content from xpath
+getNodesTxt <- function(html_txt1,xpath_p){
+  els1 = getNodeSet(html_txt1, xpath_p)
+   els1_txt <- sapply(els1,xmlValue)[!(sapply(els1,xmlValue)=="")]
+    str_replace_all(els1_txt,"(\\n )+","")
+}
+dealNodeTxt <- function(NodeTxt){
+  ifelse(is.character(NodeTxt)==T && length(NodeTxt)!=0 , NodeTxt , NA)
+}
+
+for(i in 1:nrow(genes)){
+doc <- read_html(x = genes[i,"NCBI_url"])
+cat("成功获得网页！\t")
+# obtain the website content
+html_txt1 = htmlParse(doc, asText = TRUE)
+genes[i,"FullName"] <- dealNodeTxt(getNodesTxt(html_txt1,'//*[@id="summaryDl"]/dd[2]/text()'))
+cat("写入基因\t")
+genes[i,"HGNC_ID"] <- str_replace_all(dealNodeTxt(getNodesTxt(html_txt1,'//*[@id="summaryDl"]/dd[3]/a')),"HGNC|:","")
+cat("写入HGNC_ID\t")
+genes[i,"GeneType"] <- dealNodeTxt(getNodesTxt(html_txt1,'//*[@id="summaryDl"]/dd[5]/text()'))
+cat("写入GeneType\t")
+genes[i,"Summary"] <- ifelse(length(getNodesTxt(html_txt1,'//*[@id="summaryDl"]/dd[10]/text()'))!=0,getNodesTxt(html_txt1,'//*[@id="summaryDl"]/dd[10]/text()'),NA)
+cat("写入Summary\n")
+print(paste("完成第",i,"个了！"))
+}
+write.csv(geneall,"gene_annotation.csv")
