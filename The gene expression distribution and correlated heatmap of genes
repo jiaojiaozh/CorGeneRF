@@ -1,0 +1,84 @@
+library(dplyr)
+library(pheatmap)
+TPM_NT_group<-read.csv("TPM_NT_group_10721_283.csv",row.names = 1)              #read the gene and group data
+genenumberde<-read.csv("genenumberde.csv",row.names = 1)                        #read the number of correlation 
+cor10721<-read.csv("correlation10721.csv",check.names=FALSE,row.names = 1)      #read the correlation data of genes with radiomic feature
+#the correlation heatmap for genes with 1-14 radiomic features  
+for(n in 1:6371){  
+  gene<-genenumberde[n,1]
+  TPM_NT_gene<-TPM_NT_group[,c("group",gene)]
+  TPM_NT_gene$group<-as.character(TPM_NT_gene$group)
+  colnames(TPM_NT_gene)[2]<-"gene" 
+  
+  corgene<-cor10721[cor10721$gene%in%gene,]
+  corgene1<-corgene
+  rownames(corgene1)<-corgene1$'radiomic feature'
+  corgene1<-corgene1[,-(1:2)]
+  corgeneo<-corgene1[order(corgene1$cor),]
+  
+  pdf(paste(gene,"_figures.pdf"))
+  p1<-ggplot(TPM_NT_gene, aes(group, gene)) + 
+    geom_violin(aes(fill=group),trim=FALSE,color="white") + scale_fill_manual(values = c('#3E70B1','#D9352A'))+
+    geom_boxplot(width=0.1)+theme_bw()+ theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
+    ylab("TPM Value")+xlab("")+theme(plot.margin=unit(rep(4,4),'cm'))+stat_compare_means(method = "t.test")
+  print(p1)
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+  
+  png(paste(gene,"_expression.png"),width = 607,height = 500,units = "px",bg = "transparent")
+  p2<-ggplot(TPM_NT_gene, aes(group, gene)) + geom_violin(aes(fill=group),trim=FALSE,color="white") + 
+    scale_fill_manual(values = c('#3E70B1','#D9352A'))+geom_boxplot(width=0.1)+theme_bw(base_size = 14)+ theme(panel.grid.major = element_blank(),    
+                                                                                                               panel.grid.minor = element_blank())+ylab("TPM Value")+xlab("")+theme(plot.margin = margin(t = 2.5,r = 3.5,b = 2.5,l = 4.5,unit = "cm"))+  
+    stat_compare_means(method = "t.test")+theme(legend.background=element_rect(fill=rgb(1,1,1,alpha=0.001),colour=NA))+
+    theme(plot.title = element_text(size = 14),legend.title=element_text(size=12),legend.text=element_text(size=10),
+          panel.background = element_rect(fill = "transparent",colour = NA),plot.background = element_rect(fill = "transparent",colour = NA))
+  print(p2)
+  dev.off()
+  
+  png(paste(gene,"_correlated heatmap.png"),width = 707,height = 500,units = "px",bg = "transparent")
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+  write.csv(corgene,paste(gene,"_correlated radiomic features table.csv"),row.names = F)
+}
+#the correlation heatmap for genes with ≥15 radiomic features
+for(n in 6372:10721){  
+  gene<-genenumberde[n,1]
+  TPM_NT_gene<-TPM_NT_group[,c("group",gene)]
+  TPM_NT_gene$group<-as.character(TPM_NT_gene$group)
+  colnames(TPM_NT_gene)[2]<-"gene" 
+  
+  corgene<-cor10721[cor10721$gene%in%gene,]
+  corgene1<-corgene[order(abs(corgene$cor),decreasing = T),]
+  corgene1<-corgene1[(1:15),]
+  rownames(corgene1)<-corgene1$'radiomic feature'
+  corgene1<-corgene1[,-(1:2)]
+  corgeneo<-corgene1[order(corgene1$cor),]
+  
+  pdf(paste(gene,"_figures.pdf"))
+  p1<-ggplot(TPM_NT_gene, aes(group, gene)) + 
+    geom_violin(aes(fill=group),trim=FALSE,color="white") + scale_fill_manual(values = c('#3E70B1','#D9352A'))+
+    geom_boxplot(width=0.1)+theme_bw()+ theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
+    ylab("TPM Value")+xlab("")+theme(plot.margin=unit(rep(4,4),'cm'))+stat_compare_means(method = "t.test")
+  print(p1)
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+  
+  png(paste(gene,"_expression.png"),width = 607,height = 500,units = "px",bg = "transparent")
+  p2<-ggplot(TPM_NT_gene, aes(group, gene)) + geom_violin(aes(fill=group),trim=FALSE,color="white") + 
+    scale_fill_manual(values = c('#3E70B1','#D9352A'))+geom_boxplot(width=0.1)+theme_bw(base_size = 14)+ theme(panel.grid.major = element_blank(),    
+                                                                                                               panel.grid.minor = element_blank())+ylab("TPM Value")+xlab("")+theme(plot.margin = margin(t = 2.5,r = 3.5,b = 2.5,l = 4.5,unit = "cm"))+  
+    stat_compare_means(method = "t.test")+theme(legend.background=element_rect(fill=rgb(1,1,1,alpha=0.001),colour=NA))+
+    theme(plot.title = element_text(size = 14),legend.title=element_text(size=12),legend.text=element_text(size=10),
+          panel.background = element_rect(fill = "transparent",colour = NA),plot.background = element_rect(fill = "transparent",colour = NA))
+  print(p2)
+  dev.off()
+  
+  png(paste(gene,"_correlated heatmap.png"),width = 707,height = 500,units = "px",bg = "transparent")
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+  write.csv(corgene,paste(gene,"_correlated radiomic features table.csv"),row.names = F)
+}
