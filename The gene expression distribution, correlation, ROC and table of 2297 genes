@@ -1,0 +1,350 @@
+library(pheatmap)
+library(ggplot2)
+library(ggpubr)
+library(pROC)
+library(openxlsx)
+library(dplyr)
+TPM_1691_283_group<-read.csv("TPM_1691_283_group.csv",row.names = 1)
+gene1691order<-read.csv("gene1691order.csv",row.names = 1)
+TPM_1691_correlation<-read.csv("TPM_1691_correlation.csv",row.names = 1)
+colnames(TPM_1691_correlation)[2]<-"radiomic feature"
+TPM_1691_tumor<-read.csv("TPM_1691_tumor_142.csv",row.names = 1)
+rownames(TPM_1691_tumor)<-TPM_1691_tumor$ID
+TPM_1691_tumor1<-TPM_1691_tumor[,-(1:2)]
+radiomicdf<-as.data.frame(read.csv("radiomics_142_854 features.csv",row.names = 1))  #read the table
+#对与基因特征有1个影像特征的表达与相关性,单个特征的AUC图  
+for(n in 1:231){  
+  gene<-gene1691order[n,1]
+  TPM_NT_gene<-TPM_1691_283_group[,c("group",gene)]
+  TPM_NT_gene$group<-as.character(TPM_NT_gene$group)
+  colnames(TPM_NT_gene)[2]<-"gene" 
+  
+  corgene<-TPM_1691_correlation[TPM_1691_correlation$gene%in%gene,]
+  corgene1<-corgene
+  rownames(corgene1)<-corgene1$'radiomic feature'
+  corgene1<-corgene1[,-(1:2)]
+  corgeneo<-corgene1[order(corgene1$cor),]
+  
+  singlegenedf<-TPM_1691_tumor1%>%select(all_of(gene))
+  singleradiomicdf<-radiomicdf%>%select(corgene$'radiomic feature')
+  
+  df_cl_merge<-merge(singlegenedf,singleradiomicdf,by = 'row.names')
+  rownames(df_cl_merge)<-df_cl_merge$Row.names
+  df_cl<-df_cl_merge[,-1]
+  names(df_cl)[1]<-"Label"
+  med<-median(df_cl[,1])
+  df_cl$Label<-ifelse(df_cl[[1]]<=med,0,1)
+  
+  fit_single_feature<-glm(Label ~.,data = df_cl,family = binomial("logit"))
+  pre_single_feature <- as.vector(predict(fit_single_feature, newx = df_cl))
+  auc_single_feature<-roc(df_cl[,1], pre_single_feature, ci = T, quiet = T, transpose = T)
+  auc_singlefeature <- data.frame(c(colnames(df_cl)[2]),auc_single_feature$auc)
+  feature<-colnames(df_cl)[2]
+  
+  colnames(auc_singlefeature)[1]<-"radiomic feature"
+  colnames(auc_singlefeature)[2]<-"AUC"
+  df_cl<-data.frame(ID=rownames(df_cl),df_cl)
+  
+  pdf(paste(gene,"_figures.pdf"))
+  par(oma=c(6,5,4,3))
+  p1<-ggplot(TPM_NT_gene, aes(group, gene)) + 
+    geom_violin(aes(fill=group),trim=FALSE,color="white") + scale_fill_manual(values = c('#3E70B1','#D9352A'))+
+    geom_boxplot(width=0.1)+theme_bw()+ theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
+    ylab("TPM Value")+xlab("")+theme(plot.margin=unit(rep(4,4),'cm'))+stat_compare_means(method = "t.test")
+  print(p1)
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  plot(auc_single_feature, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of",feature,"for predicting ",gene),width =65),cex.main=0.8,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+  dev.off()
+  
+  png(paste(gene,"_correlated heatmap.png"),width = 707,height = 500,units = "px",bg = "transparent")
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+}
+#对与基因特征有2-14个影像特征的表达与相关性,逻辑回归及单个特征AUC图
+for(n in 232:875){  
+  gene<-gene1691order[n,1]
+  TPM_NT_gene<-TPM_1691_283_group[,c("group",gene)]
+  TPM_NT_gene$group<-as.character(TPM_NT_gene$group)
+  colnames(TPM_NT_gene)[2]<-"gene" 
+  
+  corgene<-TPM_1691_correlation[TPM_1691_correlation$gene%in%gene,]
+  corgene1<-corgene
+  rownames(corgene1)<-corgene1$'radiomic feature'
+  corgene1<-corgene1[,-(1:2)]
+  corgeneo<-corgene1[order(corgene1$cor),]
+  
+  singlegenedf<-TPM_1691_tumor1%>%select(all_of(gene))
+  singleradiomicdf<-radiomicdf%>%select(corgene$'radiomic feature')
+  
+  df_cl_merge<-merge(singlegenedf,singleradiomicdf,by = 'row.names')
+  rownames(df_cl_merge)<-df_cl_merge$Row.names
+  df_cl<-df_cl_merge[,-1]
+  names(df_cl)[1]<-"Label"
+  med<-median(df_cl[,1])
+  df_cl$Label<-ifelse(df_cl[[1]]<=med,0,1)
+  
+  fit_single_feature<-glm(Label ~.,data = df_cl,family = binomial("logit"))
+  pre_single_feature <- as.vector(predict(fit_single_feature, newx = df_cl))
+  auc_single_feature<-roc(df_cl[,1], pre_single_feature, ci = T, quiet = T, transpose = T)
+  auc_singlefeature <- data.frame(c(colnames(df_cl)[2]),auc_single_feature$auc)
+  feature<-colnames(df_cl)[2]
+  
+  fit_af<-glm(Label ~. ,data = df_cl,family = binomial("logit"))
+  pre_af<-as.vector(predict(fit_af, newx = df_cl))
+  auc_af<-roc(df_cl[,1], pre_af, ci = T, quiet = T, transpose = T)
+  
+  pdf(paste(gene,"_figures.pdf"))
+  par(oma=c(6,5,4,3))
+  p1<-ggplot(TPM_NT_gene, aes(group, gene)) + 
+    geom_violin(aes(fill=group),trim=FALSE,color="white") + scale_fill_manual(values = c('#3E70B1','#D9352A'))+
+    geom_boxplot(width=0.1)+theme_bw()+ theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
+    ylab("TPM Value")+xlab("")+theme(plot.margin=unit(rep(4,4),'cm'))+stat_compare_means(method = "t.test")
+  print(p1)
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  plot(auc_af, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of LR model with correlated features for predicting ",gene),width =65),cex.main=0.8,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+  
+  auc_single_res<-data.frame(c.colnames.df_cl..n..=0,auc_single_feature.auc=0)
+  #保存单个特征对应的AUC
+  for(n in 2:(ncol(df_cl))){print(n)
+    fit_single_feature<-glm(Label ~df_cl[,n] ,data = df_cl,family = binomial("logit"))
+    pre_single_feature <- as.vector(predict(fit_single_feature, newx = df_cl))
+    auc_single_feature  = roc(df_cl[,1], pre_single_feature, ci = T, quiet = T, transpose = T)
+    par(oma=c(6,5,4,3),mfrow=c (1,1))
+    feature<-colnames(df_cl)[n]
+    p1<-plot(auc_single_feature, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of",feature,"for predicting ",gene),width =70),cex.main=0.8,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+    print(p1)
+    auc_single_res1 <- data.frame(c(colnames(df_cl)[n]),auc_single_feature$auc)
+    auc_single_res<-rbind(auc_single_res,auc_single_res1)}
+  dev.off()
+  
+  png(paste(gene,"_correlated heatmap.png"),width = 707,height = 500,units = "px",bg = "transparent")
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+}
+
+#对与基因特征有15个及以上的影像特征的表达与相关性,逻辑回归及单个特征AUC图
+library(caret)
+library(glmnet)
+910:1691
+for(n in 910:1691){  
+  gene<-gene1691order[n,1]
+  TPM_NT_gene<-TPM_1691_283_group[,c("group",gene)]
+  TPM_NT_gene$group<-as.character(TPM_NT_gene$group)
+  colnames(TPM_NT_gene)[2]<-"gene" 
+  
+  corgene<-TPM_1691_correlation[TPM_1691_correlation$gene%in%gene,]
+  rownames(corgene)<-corgene$'radiomic feature'
+  corgeneo<-corgene[order(abs(corgene$cor),decreasing = T),]
+  corgenedf<-corgeneo[(1:14),]
+  corgeneo<-corgeneo[(1:15),]
+  corgeneo<-corgeneo[,-(1:2)]
+  corgeneo<-corgeneo[order(corgeneo$cor),]
+  
+  singlegenedf<-TPM_1691_tumor1%>%select(all_of(gene))
+  singleradiomicdf<-radiomicdf%>%select(corgene$'radiomic feature')
+  df_cl_merge<-merge(singlegenedf,singleradiomicdf,by = 'row.names')
+  rownames(df_cl_merge)<-df_cl_merge$Row.names
+  df_cl<-df_cl_merge[,-1]
+  names(df_cl)[1]<-"Label"
+  med<-median(df_cl[,1])
+  df_cl$Label<-ifelse(df_cl[[1]]<=med,0,1)
+  
+  # The AUC of top14 related features -----------------------------------------------------------
+  df_cl14feature<-corgene[order(-(abs(corgene$cor))),]
+  df_cl14featuresele<-df_cl14feature[1:14,]
+  df_cl14<-df_cl%>%select(Label,df_cl14featuresele$'radiomic feature')
+  fit_af<-glm(Label ~. ,data = df_cl14,family = binomial("logit"))
+  pre_af<-as.vector(predict(fit_af, newx = df_cl10))
+  auc_af<-roc(df_cl14[,1], pre_af, ci = T, quiet = T, transpose = T)
+  
+  # develop the  model by LASSO----------------------------------------------
+  auclasso_df <- data.frame(a=0,lassoroc_train.auc=0,lassoroc_test.auc=0)
+  cnt<-1
+  repeat{
+    a<-sample(1:9999,1,replace = FALSE)
+    set.seed(a)
+    train_index <- createDataPartition(df_cl$Label, p = 0.7, list = FALSE)
+    train <- df_cl[train_index, ]
+    test<- df_cl[-train_index, ]
+    set.seed(a)
+    var_sel = list()
+    auc_res_test = list()
+    auc_res_train = list()
+    auc_train = list()
+    auc_test  = list()
+    cv_fit_list = list()
+    fit_list = list()
+    roc_compare = c()
+    for(i  in c(1:10))
+    {
+      x <- as.matrix(train[, -1])
+      y <- train$Label
+      
+      cv.fit <- cv.glmnet(x, y, family = 'binomial', type.measure = "auc",nfolds = 10, alpha = 1)
+      fit <- glmnet(x, y, family = 'binomial',alpha = 1)
+      
+      cv_fit_list[[i]] = cv.fit
+      fit_list[[i]] = fit
+      
+      vars_sel = coef(cv.fit, s = cv.fit$lambda.1se)
+      vars_sel = unlist(vars_sel@Dimnames)[vars_sel@i + 1][-1]
+      var_sel[[i]] = data.frame(var_sel = vars_sel)%>%mutate(var_sel = as.character(var_sel))
+      
+      pre_res_test <- as.vector(predict(fit, newx = as.matrix(test[, -1]), s = cv.fit$lambda.1se))
+      roc_res_test <- auc(roc(test$Label, pre_res_test, ci = T, quiet = T, transpose = T))
+      
+      pre_res_train <- as.vector(predict(fit, newx = x, s = cv.fit$lambda.1se))
+      roc_res_train <- auc(roc(train$Label, pre_res_train, ci = T, quiet = T, transpose = T))
+      auc_res_test[[i]] = roc_res_test
+      auc_res_train[[i]] = roc_res_train
+      auc_train[[i]] = roc(train$Label, pre_res_train, ci = T, quiet = T, transpose = T)
+      auc_test[[i]]  = roc(test$Label, pre_res_test, ci = T, quiet = T, transpose = T)
+      
+      roc_compare[i] = roc.test(roc_res_test, roc_res_train)$p.value
+    }
+    idx = which.max(auc_res_test)
+    cvfit = cv_fit_list[[idx]]
+    fit = fit_list[[idx]]
+    s= cvfit$lambda.1se
+    
+    lassoroc_train = auc_train[[idx]]
+    lassoroc_test  = auc_test[[idx]]
+    
+    auclasso_df1 <- data.frame(a,lassoroc_train$auc,lassoroc_test$auc)
+    auclasso_df <- rbind(auclasso_df,auclasso_df1)
+    
+    cnt<-cnt+1
+    if(cnt>10){
+      break
+    }
+  }
+  # choose the optimal seed_LASSO -------------------------------------------------
+  auclasso_dfsele<-auclasso_df[(auclasso_df$lassoroc_train.auc>auclasso_df$lassoroc_test.auc),]
+  auclasso_df_order<-auclasso_dfsele[order(auclasso_dfsele$lassoroc_test.auc,auclasso_dfsele$lassoroc_train.auc),]
+  seed_selcetlasso<-auclasso_df_order[nrow(auclasso_df_order),]
+  
+  # The results for LASSO model ----------------------------------------------
+  set.seed(seed_selcetlasso$a)
+  train_index <- createDataPartition(df_cl$Label, p = 0.7, list = FALSE)
+  train <- df_cl[train_index, ]
+  test<- df_cl[-train_index, ]
+  set.seed(seed_selcetlasso$a)
+  var_sel = list()
+  auc_res_test = list()
+  auc_res_train = list()
+  auc_train = list()
+  auc_test  = list()
+  cv_fit_list = list()
+  fit_list = list()
+  roc_compare = c()
+  for(i  in c(1:10))
+  {
+    x <- as.matrix(train[, -1])
+    y <- train$Label
+    cv.fit <- cv.glmnet(x, y, family = 'binomial', type.measure = "auc",nfolds = 10, alpha = 1)
+    fit <- glmnet(x, y, family = 'binomial', alpha = 1)
+    cv_fit_list[[i]] = cv.fit
+    fit_list[[i]] = fit
+    vars_sel = coef(cv.fit, s = cv.fit$lambda.1se)
+    vars_sel = unlist(vars_sel@Dimnames)[vars_sel@i + 1][-1]
+    var_sel[[i]] = data.frame(var_sel = vars_sel)%>%mutate(var_sel = as.character(var_sel))
+    pre_res_test <- as.vector(predict(fit, newx = as.matrix(test[, -1]), s = cv.fit$lambda.1se))
+    roc_res_test <- auc(roc(test$Label, pre_res_test, ci = T, quiet = T, transpose = T))
+    pre_res_train <- as.vector(predict(fit, newx = x, s = cv.fit$lambda.1se))
+    roc_res_train <- auc(roc(train$Label, pre_res_train, ci = T, quiet = T, transpose = T))
+    auc_res_test[[i]] = roc_res_test
+    auc_res_train[[i]] = roc_res_train
+    auc_train[[i]] = roc(train$Label, pre_res_train, ci = T, quiet = T, transpose = T)
+    auc_test[[i]]  = roc(test$Label, pre_res_test, ci = T, quiet = T, transpose = T)
+    roc_compare[i] = roc.test(roc_res_test, roc_res_train)$p.value
+  }
+  idx = which.max(auc_res_test)
+  cvfit = cv_fit_list[[idx]]
+  fit = fit_list[[idx]]
+  s= cvfit$lambda.1se
+  roc_train = auc_train[[idx]]
+  roc_test  = auc_test[[idx]]
+  
+  fit_single_feature<-glm(Label ~.,data = df_cl,family = binomial("logit"))
+  pre_single_feature <- as.vector(predict(fit_single_feature, newx = df_cl))
+  auc_single_feature<-roc(df_cl[,1], pre_single_feature, ci = T, quiet = T, transpose = T)
+  auc_singlefeature <- data.frame(c(colnames(df_cl)[2]),auc_single_feature$auc)
+  feature<-colnames(df_cl)[2]
+  
+  fit_af<-glm(Label ~. ,data = df_cl,family = binomial("logit"))
+  pre_af<-as.vector(predict(fit_af, newx = df_cl))
+  auc_af<-roc(df_cl[,1], pre_af, ci = T, quiet = T, transpose = T)
+  
+  pdf(paste(gene,"_figures.pdf"))
+  par(oma=c(6,5,4,3))
+  p1<-ggplot(TPM_NT_gene, aes(group, gene)) + 
+    geom_violin(aes(fill=group),trim=FALSE,color="white") + scale_fill_manual(values = c('#3E70B1','#D9352A'))+
+    geom_boxplot(width=0.1)+theme_bw()+ theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
+    ylab("TPM Value")+xlab("")+theme(plot.margin=unit(rep(4,4),'cm'))+stat_compare_means(method = "t.test")
+  print(p1)
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  p2<-plot(auc_af, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of LR model with top 14 correlated features for predicting ",gene),width =65),cex.main=1,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+  print(p2)
+  
+  plot(roc_train, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',legacy.axes = T, col = '#D9352A',main=strwrap(paste("The AUC of LASSO model with related features for predicting ",gene),width =65),cex.main=0.8)
+  plot(roc_test, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',add = T, col = '#3E70B1', print.auc.y = 0.45)
+  legend(0.3,0.2, bty = "n", legend=c("Train","Test"),   col=c('#D9352A','#3E70B1'),lwd=2)           #保存LASSO train & test的AUC
+  
+  auc_single_res<-data.frame(c.colnames.df_cl14..n..=0,auc_single_feature.auc=0)
+  #保存单个特征对应的AUC
+  for(n in 2:(ncol(df_cl14))){print(n)
+    fit_single_feature<-glm(Label ~df_cl14[,n] ,data = df_cl14,family = binomial("logit"))
+    pre_single_feature <- as.vector(predict(fit_single_feature, newx = df_cl14))
+    auc_single_feature  = roc(df_cl14[,1], pre_single_feature, ci = T, quiet = T, transpose = T)
+    par(oma=c(6,5,4,3),mfrow=c (1,1))
+    feature<-colnames(df_cl14)[n]
+    p1<-plot(auc_single_feature, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of",feature,"for predicting ",gene),width =65),cex.main=0.8,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+    print(p1)
+    auc_single_res1 <- data.frame(c(colnames(df_cl14)[n]),auc_single_feature$auc)
+    auc_single_res<-rbind(auc_single_res,auc_single_res1)}
+  dev.off()
+  
+  png(paste(gene,"_expression.png"),width = 607,height = 500,units = "px",bg = "transparent")
+  p3<-ggplot(TPM_NT_gene, aes(group, gene)) + geom_violin(aes(fill=group),trim=FALSE,color="white") + 
+    scale_fill_manual(values = c('#3E70B1','#D9352A'))+geom_boxplot(width=0.1)+theme_bw(base_size = 14)+ theme(panel.grid.major = element_blank(),    
+                                                                                                               panel.grid.minor = element_blank())+ylab("TPM Value")+xlab("")+theme(plot.margin = margin(t = 2.5,r = 3.5,b = 2.5,l = 4.5,unit = "cm"))+  
+    stat_compare_means(method = "t.test")+theme(legend.background=element_rect(fill=rgb(1,1,1,alpha=0.001),colour=NA))+
+    theme(plot.title = element_text(size = 14),legend.title=element_text(size=12),legend.text=element_text(size=10),
+          panel.background = element_rect(fill = "transparent",colour = NA),plot.background = element_rect(fill = "transparent",colour = NA))
+  print(p3)
+  dev.off()
+  
+  png(paste(gene,"_correlated heatmap.png"),width = 707,height = 500,units = "px",bg = "transparent")
+  pheatmap(corgeneo,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = corgene$pvalue,
+           fontsize_number = 12, number_color = "black",cellwidth = 40, cellheight =20,fontsize=12)
+  dev.off()
+  
+  png(paste(gene,"_AUC plot.png"),width = 500,height = 500,units = "px",bg = "transparent")
+  par(oma=c(6,5,4,3))
+  plot(auc_af, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of LR model with correlated features for predicting ",gene),width =65),cex.main=1,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+  dev.off()
+  
+  auc_single_res<-auc_single_res[-1,]
+  colnames(auc_single_res)[1]<-"radiomic feature"
+  colnames(auc_single_res)[2]<-"AUC"
+  df_cl<-data.frame(ID=rownames(df_cl),df_cl)
+  
+  table<-list("The_correlation"=corgene,"table_for_model"=df_cl,"The_AUC_of_LASSO_model"=auclasso_df,"The_AUC_of_single_feature"=auc_single_res)
+  write.xlsx(table,paste(gene,"_table.xlsx"),rowNames=F)
+}
+
+fit_af<-glm(Label ~. ,data = df_cl14,family = binomial("logit"))
+pre_af<-as.vector(predict(fit_af, newx = df_cl14))
+auc_af<-roc(df_cl14[,1], pre_af, ci = T, quiet = T, transpose = T)
+plot(auc_af, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of LR model with correlated features for predicting ",gene),width =65),cex.main=1,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+
+fit_af<-glm(Label ~. ,data = df_cl,family = binomial("logit"))
+pre_af<-as.vector(predict(fit_af, newx = df_cl))
+auc_af<-roc(df_cl[,1], pre_af, ci = T, quiet = T, transpose = T)
+plot(auc_af, print.auc = T, print.auc.pattern = 'AUC: %.2f (%.2f - %.2f)',main=strwrap(paste("The AUC of LR model with correlated features for predicting ",gene),width =65),cex.main=1,legacy.axes = T, col = '#D9352A',print.auc.y = 0.45)
+write.csv(df_cl14,"dfcl14.csv")
