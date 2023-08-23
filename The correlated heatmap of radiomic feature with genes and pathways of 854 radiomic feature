@@ -1,0 +1,53 @@
+setwd("D:/WORK-ZJJ/project/relationgeneradiomics2022523/2022112_1.5Wgene_854rf_322path")
+
+# Empty memory and input radiomic feature --------------------------------------------------------------------
+rm(list=ls())
+gc()
+rf<-"wavelet_HLL_glcm_Imc1" 
+
+# correlation of  radiomic feature and  gene--------------------------------
+genedf<-as.data.frame(read.csv("gene_142_2564 gene TPM.csv",row.names = 1))             #read the gene table
+radiomicdf<-as.data.frame(read.csv("radiomics_142_854 features.csv",row.names = 1))     #read the radiomic table
+singlerfdf<-radiomicdf%>%select(all_of(rf))
+cor<-corr.test(singlerfdf, genedf, method = "spearman",adjust="none")
+df<-melt(cor$r,value.name="cor")
+df$pvalue <-as.vector(cor$p)
+dfsub<-subset(df,abs(df$cor)>0.2 & df$pvalue <0.05)
+dfsubb<-dfsub[order(abs(dfsub$cor),decreasing = TRUE),]
+dfsubb20<-dfsubb[(1:20),]  
+rownames(dfsubb20)<-dfsubb20$Var2
+dfmap<-dfsubb20[,(3:4)]
+heatmap_df<-dfmap[order(dfmap$cor),]
+par(oma=c(6,5,4,3))                                                                       #save the correlated heatmap
+pheatmap(heatmap_df,main =rf,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = heatmap_df$pvalue,
+         fontsize_number = 8, number_color = "black",cellwidth = 25, cellheight =15,fontsize=8)
+
+
+# correlation of  radiomic feature and  pathway--------------------------------
+pathwaydf<-as.data.frame(t(read.csv("GSVA_result of 142CRC tpm.csv",row.names = 1)))      #read the pathway score table
+singlerfdf<-radiomicdf%>%select(all_of(rf))
+corpath<-corr.test(singlerfdf, pathwaydf, method = "spearman",adjust="none")
+dfpath<-melt(corpath$r,value.name="cor")
+dfpath$pvalue <-as.vector(corpath$p)
+dfpathsub<-subset(dfpath,abs(dfpath$cor)>0.2 & dfpath$pvalue <0.05)
+rownames(dfpathsub)<-dfpathsub$Var2
+dfpathmap<-dfpathsub[,(3:4)]
+heatmap_dfpath<-dfpathmap[order(dfpathmap$cor),]
+
+#if the number of correlated feature ≤ 20, the correlated heatmap shown all the correlated features
+pdf(paste(gene,"_correlated pathways.pdf")) 
+par(oma=c(6,5,4,3)) 
+pheatmap(heatmap_dfpath,main =rf,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = heatmap_df$pvalue,
+         fontsize_number = 8, number_color = "black",cellwidth = 25, cellheight =15,fontsize=8)
+dev.off()
+
+
+#if the number of correlated feature >20，the correlated heamap shown the top 20 |R| correlated features
+tmp_1<-heatmap_df[1:10,]
+tmp_2<-heatmap_df[(nrow(heatmap_df)-9):nrow(heatmap_df),]
+heatmap_dforder<-rbind(tmp_1,tmp_2)
+pdf(paste(gene,"_correlated pathways.pdf")) 
+par(oma=c(6,5,4,3)) 
+pheatmap(heatmap_dforder,main =gene,scale = "none",cluster_row = F, cluster_col = F,border=NA,shown_rownames=TRUE,display_numbers = heatmap_df$pvalue,
+         fontsize_number = 8, number_color = "black",cellwidth = 25, cellheight =15,fontsize=8)
+dev.off()
